@@ -37,7 +37,7 @@ func newRow(text string, rowIndex int) Row {
 // calling row and returning the remainder of the line
 // as a new Row. This new row will share its idx with the
 // calling row, and so that needs to be updated.
-func (row *Row) splitRow(position int) Row {
+func (row *Row) split(position int) Row {
 	// Get the content (this is possibly empty)
 	newContent := make([]rune, 0, row.size-position)                                         // Allocate slice that is large enough
 	newContent = slices.AppendSeq(newContent, slices.Values(row.content[position:row.size])) // Add the content
@@ -49,6 +49,12 @@ func (row *Row) splitRow(position int) Row {
 
 	// Return the newly created row
 	return newRow
+}
+
+// Join another row to the end of calling row
+func (row *Row) join(other Row) {
+	row.content = append(row.content, other.content...)
+	row.size = len(row.content)
 }
 
 // Insert a character into the row at the provided position

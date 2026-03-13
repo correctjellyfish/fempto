@@ -7,7 +7,7 @@ import (
 
 func TestRowSplit(t *testing.T) {
 	testRow := newRow("Hello", 0)
-	testSplitRow := testRow.splitRow(4)
+	testSplitRow := testRow.split(4)
 	wantRemain := newRow("Hell", 0)
 	wantSplit := newRow("o", 0)
 	if !slices.Equal(testRow.content, wantRemain.content) || !slices.Equal(testSplitRow.content, wantSplit.content) {
