@@ -7,8 +7,15 @@ import (
 	"slices"
 )
 
-// Constant for whitespace
-var whitespace []rune = []rune{' ', '-', '_'}
+// Detect whitespace
+func isWhitespace(char rune) bool {
+	switch char {
+	case ' ', '-', '_', '\n', '\r':
+		return true
+	default:
+		return false
+	}
+}
 
 // Row represents a single row of text in a Buffer
 type Row struct {
@@ -58,7 +65,7 @@ func (row *Row) join(other Row) {
 }
 
 // Insert a character into the row at the provided position
-func (row *Row) insertChar(position int, char rune) {
+func (row *Row) insertChar(char rune, position int) {
 	// NOTE: Panics if the position is too large
 	row.content = slices.Insert(row.content, position, char)
 	row.size++
@@ -77,17 +84,73 @@ func (row *Row) deleteChar(position int) {
 	row.size--
 }
 
-// Return the position of the next word following the
-func (row *Row) nextWord(position int) int {
-	if position >= row.size {
-		return row.size - 1
-	}
+// Return the position of the end of the word which
+// position is inside of
+func (row *Row) wordEnd(position int) int {
 	curIdx := position
 	for ; curIdx < row.size; curIdx++ {
-		if slices.Contains(whitespace, row.content[curIdx]) {
+		if isWhitespace(row.content[curIdx]) {
 			break
 		}
 	}
+	if curIdx >= row.size {
+		return row.size - 1
+	}
+	curIdx--
+	return curIdx
+}
+
+// Return the position of the start of the word which
+// position is inside of
+func (row *Row) wordStart(position int) int {
+	curIdx := position
+	for ; curIdx >= 0; curIdx-- {
+		if isWhitespace(row.content[curIdx]) {
+			break
+		}
+	}
+	if curIdx < 0 {
+		return 0
+	}
+	curIdx++
+	return curIdx
+}
+
+// Return the position of the next word following the specified position
+func (row *Row) nextWord(position int) int {
+	curIdx := position
+	for ; curIdx < row.size; curIdx++ {
+		if isWhitespace(row.content[curIdx]) {
+			break
+		}
+	}
+	if curIdx >= row.size {
+		return row.size - 1
+	}
+	curIdx++
+	return curIdx
+}
+
+// Return the position of the previous word from the given position
+func (row *Row) prevWord(position int) int {
+	curIdx := position
+	seenWhitespace := false
+	for ; curIdx >= 0; curIdx-- {
+		if isWhitespace(row.content[curIdx]) {
+			if seenWhitespace {
+				break
+			} else {
+				seenWhitespace = true
+			}
+		}
+	}
+	if curIdx >= row.size {
+		return row.size - 1
+	}
+	if curIdx < 0 {
+		return 0
+	}
+	curIdx++
 	return curIdx
 }
 
@@ -95,6 +158,7 @@ func (row *Row) nextWord(position int) int {
 type Buffer struct {
 	nrows int
 	rows  []Row
+	file  string
 }
 
 // Create a new Buffer from a text file. If path is an empty string,
