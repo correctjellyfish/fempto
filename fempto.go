@@ -1,10 +1,17 @@
 package main
 
-import "fmt"
-
-// import "github.com/gdamore/tcell/v2"
-// import "github.com/alecthomas/chroma.git"
+import (
+	"os"
+)
 
 func main() {
-	fmt.Println("Hello, World!")
+	args := os.Args
+	var fempto Editor
+	if len(args) > 1 {
+		fempto = newEditor(&args[1])
+	} else {
+		fempto = newEditor(nil)
+	}
+	defer fempto.exit()
+	fempto.run()
 }
