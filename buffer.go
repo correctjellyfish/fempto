@@ -2,178 +2,35 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"log"
 	"os"
-	"slices"
 )
-
-// Detect whitespace
-func isWhitespace(char rune) bool {
-	switch char {
-	case ' ', '-', '_', '\n', '\r':
-		return true
-	default:
-		return false
-	}
-}
-
-// Row represents a single row of text in a Buffer
-type Row struct {
-	// The index of the row within the buffer,
-	// mostly used for accessing neighboring rows
-	idx int
-	// Length of the content in the Row
-	size int
-	// The text in the Row
-	content []rune
-}
-
-// Create a new row from a string of text, and the
-// index of the row in the file
-func newRow(text string, rowIndex int) Row {
-	r := Row{
-		idx:     rowIndex,
-		content: []rune(text),
-	}
-	r.size = len(r.content)
-
-	return r
-}
-
-// Split a row starting at the given position, shortening the
-// calling row and returning the remainder of the line
-// as a new Row. This new row will share its idx with the
-// calling row, and so that needs to be updated.
-func (row *Row) split(position int) Row {
-	// Get the content (this is possibly empty)
-	newContent := make([]rune, 0, row.size-position)                                         // Allocate slice that is large enough
-	newContent = slices.AppendSeq(newContent, slices.Values(row.content[position:row.size])) // Add the content
-	newRow := Row{idx: row.idx, size: len(newContent), content: newContent}                  // Create the new row
-
-	// Shorten the calling row
-	row.content = row.content[0:position]
-	row.size = len(row.content)
-
-	// Return the newly created row
-	return newRow
-}
-
-// Join another row to the end of calling row
-func (row *Row) join(other Row) {
-	row.content = append(row.content, other.content...)
-	row.size = len(row.content)
-}
-
-// Insert a character into the row at the provided position
-func (row *Row) insertChar(char rune, position int) {
-	// NOTE: Panics if the position is too large
-	row.content = slices.Insert(row.content, position, char)
-	row.size++
-}
-
-// Delete a character at the specified position in the row.
-//
-// If the position is too large, does nothing.
-func (row *Row) deleteChar(position int) {
-	if position >= row.size {
-		// Do nothing if position if too large
-		return
-	}
-	// Remove element
-	row.content = slices.Delete(row.content, position, position+1)
-	row.size--
-}
-
-// Return the position of the end of the word which
-// position is inside of
-func (row *Row) wordEnd(position int) int {
-	curIdx := position
-	for ; curIdx < row.size; curIdx++ {
-		if isWhitespace(row.content[curIdx]) {
-			break
-		}
-	}
-	if curIdx >= row.size {
-		return row.size - 1
-	}
-	curIdx--
-	return curIdx
-}
-
-// Return the position of the start of the word which
-// position is inside of
-func (row *Row) wordStart(position int) int {
-	curIdx := position
-	for ; curIdx >= 0; curIdx-- {
-		if isWhitespace(row.content[curIdx]) {
-			break
-		}
-	}
-	if curIdx < 0 {
-		return 0
-	}
-	curIdx++
-	return curIdx
-}
-
-// Return the position of the next word following the specified position
-func (row *Row) nextWord(position int) int {
-	curIdx := position
-	for ; curIdx < row.size; curIdx++ {
-		if isWhitespace(row.content[curIdx]) {
-			break
-		}
-	}
-	if curIdx >= row.size {
-		return row.size - 1
-	}
-	curIdx++
-	return curIdx
-}
-
-// Return the position of the previous word from the given position
-func (row *Row) prevWord(position int) int {
-	curIdx := position
-	seenWhitespace := false
-	for ; curIdx >= 0; curIdx-- {
-		if isWhitespace(row.content[curIdx]) {
-			if seenWhitespace {
-				break
-			} else {
-				seenWhitespace = true
-			}
-		}
-	}
-	if curIdx >= row.size {
-		return row.size - 1
-	}
-	if curIdx < 0 {
-		return 0
-	}
-	curIdx++
-	return curIdx
-}
 
 // Buffer is a representation of lines of text, normally read from a file
 type Buffer struct {
-	nrows int
-	rows  []Row
-	file  string
+	// The number of rows in the buffer
+	nlines  int
+	lines   []Line
+	file    *string
+	history []EditCommand
 }
 
 // Create a new Buffer from a text file. If path is an empty string,
 // creates an empty buffer.
-func newBuffer(path string) Buffer {
-	if path == "" { // Empty strings are treated as nil
+func newBuffer(path *string) Buffer {
+	if path == nil { // Empty strings are treated as nil
 		return Buffer{
-			nrows: 0,
-			rows:  make([]Row, 0),
+			nlines:  0,
+			lines:   make([]Line, 0),
+			history: make([]EditCommand, 0),
+			file:    nil,
 		}
 	}
 	// Read the file
-	rows := make([]Row, 0)
+	rows := make([]Line, 0)
 	rowIdx := 0
-	file, err := os.Open(path)
+	file, err := os.Open(*path)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -183,11 +40,44 @@ func newBuffer(path string) Buffer {
 	// adding the line to the Buffer
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		rows = append(rows, newRow(scanner.Text(), rowIdx))
+		rows = append(rows, newLine(scanner.Text(), rowIdx))
 		rowIdx++
 	}
 	return Buffer{
-		nrows: rowIdx,
-		rows:  rows,
+		nlines:  rowIdx,
+		lines:   rows,
+		history: make([]EditCommand, 0),
+		file:    path,
 	}
 }
+
+// Write the contents of the buffer to the associated file
+func (buffer *Buffer) write() error {
+	if buffer.file == nil {
+		log.Print("Tried to write when no file associated with buffer")
+		return NoFileError
+	}
+	file, err := os.Create(*buffer.file)
+	if err != nil {
+		log.Print("Failed to open file")
+		return FileOpenError
+	}
+	defer file.Close()
+
+	for idx, row := range buffer.lines {
+		_, err := file.WriteString(string(append(row.content, '\n')))
+		if err != nil {
+			log.Printf("Failed to write line %v to file %v, line contents: %v", idx, buffer.file, string(row.content))
+			return WriteError
+		}
+	}
+
+	return nil
+}
+
+// Errors
+var (
+	FileOpenError = errors.New("Failed to open file")
+	WriteError    = errors.New("Failed to write to file")
+	NoFileError   = errors.New("No file to write to")
+)
