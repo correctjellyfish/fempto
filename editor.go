@@ -16,6 +16,8 @@ type Editor struct {
 	width int
 	// The current height of the editor
 	height int
+	// Whether the editor should quit
+	shouldQuit bool
 }
 
 func newEditor(path *string) Editor {
@@ -33,20 +35,41 @@ func newEditor(path *string) Editor {
 	bufferView := newBufferView(buffer, Position{0, 0}, w, h)
 
 	return Editor{
-		view:   bufferView,
-		screen: s,
-		width:  w,
-		height: h,
+		view:       bufferView,
+		screen:     s,
+		width:      w,
+		height:     h,
+		shouldQuit: false,
 	}
 }
 
 // Run the editor
 func (editor *Editor) run() {
-	log.Println("Running Fempto!")
+	for !editor.shouldQuit {
+		editor.screen.Clear()
+		command := editor.handleInput()
+		if command != nil {
+			editor.view.handleCommand(*command)
+		}
+
+	}
+
 }
 
 // Exit the editor
 func (editor *Editor) exit() {
 	// Clean up the screen
 	editor.screen.Fini()
+}
+
+func (editor *Editor) handleInput() *EditCommand {
+	ev := editor.screen.PollEvent()
+	switch ev := ev.(type) {
+	case *tcell.EventKey:
+		if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
+			editor.shouldQuit = true
+		}
+
+	}
+	return nil
 }

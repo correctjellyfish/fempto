@@ -75,6 +75,12 @@ func (buffer *Buffer) write() error {
 	return nil
 }
 
+// Handle the execution of an EditCommand
+func (buffer *Buffer) handleCommand(command EditCommand) {
+	command.execute(buffer)
+	buffer.history = append(buffer.history, command)
+}
+
 // Errors
 var (
 	FileOpenError = errors.New("Failed to open file")

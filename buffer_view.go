@@ -24,3 +24,8 @@ func newBufferView(buffer Buffer, location Position, width int, height int) Buff
 		cursor:   Position{row: 0, col: 0},
 	}
 }
+
+// Handle an EditCommand
+func (bufferView *BufferView) handleCommand(command EditCommand) {
+	bufferView.buffer.handleCommand(command)
+}
