@@ -65,9 +65,23 @@ func (editor *Editor) handleInput() command {
 	ev := editor.screen.PollEvent()
 	switch ev := ev.(type) {
 	case *tcell.EventKey:
-		if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
+		// TODO: Remove
+		mod, key, ch := ev.Modifiers(), ev.Key(), ev.Rune()
+		log.Printf("EventKey Modifiers: %b Key: %d Str: %q", mod, key, ch)
+		// Determine the Key pressed
+		switch ev.Key() {
+		case tcell.KeyRune:
+			switch ev.Modifiers() {
+			case 0, tcell.ModShift:
+				// Normal Insert mode
+				log.Printf("Insert a %c", ev.Rune())
+			}
+		case tcell.KeyEscape, tcell.KeyCtrlQ:
 			return &quitCommand{}
 		}
+	case *tcell.EventResize:
+		w, h := ev.Size()
+		return &resizeCommand{width: w, height: h}
 	}
 	return nil
 }
