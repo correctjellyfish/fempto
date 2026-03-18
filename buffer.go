@@ -13,7 +13,7 @@ type Buffer struct {
 	nlines  int
 	lines   []Line
 	file    *string
-	history []EditCommand
+	history []edit
 }
 
 // Create a new Buffer from a text file. If path is an empty string,
@@ -23,7 +23,7 @@ func newBuffer(path *string) Buffer {
 		return Buffer{
 			nlines:  0,
 			lines:   make([]Line, 0),
-			history: make([]EditCommand, 0),
+			history: make([]edit, 0),
 			file:    nil,
 		}
 	}
@@ -46,7 +46,7 @@ func newBuffer(path *string) Buffer {
 	return Buffer{
 		nlines:  rowIdx,
 		lines:   rows,
-		history: make([]EditCommand, 0),
+		history: make([]edit, 0),
 		file:    path,
 	}
 }
@@ -75,10 +75,20 @@ func (buffer *Buffer) write() error {
 	return nil
 }
 
+// Insert a character at the specified position
+func (buffer *Buffer) insertChar(char rune, position Position) {
+	buffer.lines[position.row].insertChar(char, position.col)
+}
+
+// Delete a character at the specified position
+func (buffer *Buffer) deleteChar(position Position) {
+	buffer.lines[position.row].deleteChar(position.col)
+}
+
 // Handle the execution of an EditCommand
-func (buffer *Buffer) handleCommand(command EditCommand) {
-	command.execute(buffer)
-	buffer.history = append(buffer.history, command)
+func (buffer *Buffer) handleEdit(edit edit) {
+	edit.execute()
+	buffer.history = append(buffer.history, edit)
 }
 
 // Errors

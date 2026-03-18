@@ -8,8 +8,8 @@ import (
 
 // Struct implementing the main editor interface
 type Editor struct {
-	// The Buffer currently being viewed
-	view BufferView
+	// The root UiElement
+	view UiElement
 	// The terminal screen where the editor is being drawn
 	screen tcell.Screen
 	// The current width of the editor
@@ -35,7 +35,7 @@ func newEditor(path *string) Editor {
 	bufferView := newBufferView(buffer, Position{0, 0}, w, h)
 
 	return Editor{
-		view:       bufferView,
+		view:       &bufferView,
 		screen:     s,
 		width:      w,
 		height:     h,
@@ -49,11 +49,10 @@ func (editor *Editor) run() {
 		editor.screen.Clear()
 		command := editor.handleInput()
 		if command != nil {
-			editor.view.handleCommand(*command)
+			editor.acceptCommand(command)
 		}
 
 	}
-
 }
 
 // Exit the editor
@@ -62,14 +61,25 @@ func (editor *Editor) exit() {
 	editor.screen.Fini()
 }
 
-func (editor *Editor) handleInput() *EditCommand {
+func (editor *Editor) handleInput() command {
 	ev := editor.screen.PollEvent()
 	switch ev := ev.(type) {
 	case *tcell.EventKey:
 		if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
-			editor.shouldQuit = true
+			return &quitCommand{}
 		}
-
 	}
 	return nil
+}
+
+// Accept a command
+func (editor *Editor) acceptCommand(command command) {
+	switch c := command.(type) {
+	// Commands that act on the editor
+	case *quitCommand, *resizeCommand:
+		c.visit(editor)
+	// Commands that act on other parts of the UI
+	default:
+		editor.view.acceptCommand(command)
+	}
 }
